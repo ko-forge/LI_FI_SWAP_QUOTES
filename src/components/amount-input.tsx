@@ -4,6 +4,7 @@ interface AmountInputProps {
   value: string
   onChange: (value: string) => void
   symbol?: string
+  usdHint?: string | null
   disabled?: boolean
   error?: string | null
 }
@@ -14,12 +15,13 @@ export function AmountInput({
   value,
   onChange,
   symbol,
+  usdHint,
   disabled,
   error,
 }: AmountInputProps) {
   return (
     <label className="block space-y-1.5" htmlFor={id}>
-      <span className="text-sm font-medium text-zinc-700">{label}</span>
+      <span className="field-label">{label}</span>
       <div className="relative">
         <input
           id={id}
@@ -34,19 +36,18 @@ export function AmountInput({
               onChange(next)
             }
           }}
-          className={`w-full rounded-xl border bg-white py-2.5 pr-16 pl-3 text-sm outline-none transition focus:ring-2 disabled:cursor-not-allowed disabled:bg-zinc-50 ${
-            error
-              ? 'border-red-300 focus:border-red-400 focus:ring-red-100'
-              : 'border-zinc-200 focus:border-zinc-400 focus:ring-zinc-200'
-          }`}
+          className={`amount-input ${error ? 'amount-input-error' : ''}`}
         />
         {symbol ? (
-          <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-sm font-medium text-zinc-500">
+          <span className="pointer-events-none absolute top-1/2 right-4 -translate-y-1/2 font-mono text-sm text-[var(--ink-muted)]">
             {symbol}
           </span>
         ) : null}
       </div>
-      {error ? <p className="text-xs text-red-600">{error}</p> : null}
+      {usdHint ? (
+        <p className="text-xs text-[var(--ink-muted)]">≈ {usdHint}</p>
+      ) : null}
+      {error ? <p className="text-xs text-[var(--danger)]">{error}</p> : null}
     </label>
   )
 }

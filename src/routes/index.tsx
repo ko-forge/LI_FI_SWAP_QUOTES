@@ -7,12 +7,12 @@ export const Route = createFileRoute('/')({
 
 function HomePage() {
   return (
-    <section className="space-y-6">
-      <div className="space-y-2">
-        <h2 className="text-2xl font-semibold tracking-tight">Get a quote</h2>
-        <p className="text-zinc-600">
-          Compare LI.FI swap routes across chains. Quotes only — no wallet
-          connection or swapping.
+    <section>
+      <div className="hero animate-rise">
+        <h2>Find the best swap quote</h2>
+        <p>
+          Pick a route, set an amount, and compare LI.FI estimates instantly. No
+          wallet, no signing, no swap execution.
         </p>
       </div>
       <SwapForm />

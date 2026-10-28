@@ -1,14 +1,19 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { LifiToken } from '../api/lifi/types'
 import { useChains } from '../hooks/use-chains'
 import { useDebouncedValue } from '../hooks/use-debounced-value'
 import { useQuote } from '../hooks/use-quote'
-import { useTokens } from '../hooks/use-tokens'
+import { usePrefetchTokenCatalogs, useTokens } from '../hooks/use-tokens'
 import { QUOTE_FROM_ADDRESS } from '../lib/constants'
 import {
+  formatUsd,
   isPositiveAmount,
   parseAmountToBaseUnits,
 } from '../lib/format'
+import {
+  getToken,
+  pickDefaultFromToken,
+  pickDefaultToToken,
+} from '../lib/tokens'
 import { AmountInput } from './amount-input'
 import { ChainSelect } from './chain-select'
 import { QuoteResult } from './quote-result'
@@ -16,24 +21,29 @@ import { TokenSelect } from './token-select'
 
 const DEFAULT_FROM_CHAIN_ID = 1
 const DEFAULT_TO_CHAIN_ID = 8453
+const PREFETCH_CHAIN_IDS = [1, 8453, 42161, 10, 137]
 
 export function SwapForm() {
   const chainsQuery = useChains()
   const chains = chainsQuery.data ?? []
+  usePrefetchTokenCatalogs(PREFETCH_CHAIN_IDS)
 
   const [fromChainId, setFromChainId] = useState<number | null>(null)
   const [toChainId, setToChainId] = useState<number | null>(null)
   const [fromTokenAddress, setFromTokenAddress] = useState<string | null>(null)
   const [toTokenAddress, setToTokenAddress] = useState<string | null>(null)
   const [amount, setAmount] = useState('1')
+  const [swapping, setSwapping] = useState(false)
 
   const fromTokensQuery = useTokens(fromChainId)
   const toTokensQuery = useTokens(toChainId)
-  const fromTokens = fromTokensQuery.data ?? []
-  const toTokens = toTokensQuery.data ?? []
+  const fromCatalog = fromTokensQuery.data
+  const toCatalog = toTokensQuery.data
+  const fromTokens = fromCatalog?.list ?? []
+  const toTokens = toCatalog?.list ?? []
 
-  const fromToken = findToken(fromTokens, fromTokenAddress)
-  const toToken = findToken(toTokens, toTokenAddress)
+  const fromToken = getToken(fromCatalog, fromTokenAddress)
+  const toToken = getToken(toCatalog, toTokenAddress)
 
   useEffect(() => {
     if (!chains.length || fromChainId !== null) return
@@ -51,29 +61,19 @@ export function SwapForm() {
 
   useEffect(() => {
     if (!fromTokens.length) return
-    if (
-      fromTokenAddress &&
-      fromTokens.some(
-        (token) => token.address.toLowerCase() === fromTokenAddress.toLowerCase(),
-      )
-    ) {
+    if (fromTokenAddress && fromCatalog?.byAddress[fromTokenAddress.toLowerCase()]) {
       return
     }
     setFromTokenAddress(pickDefaultFromToken(fromTokens).address)
-  }, [fromTokens, fromTokenAddress])
+  }, [fromTokens, fromTokenAddress, fromCatalog])
 
   useEffect(() => {
     if (!toTokens.length) return
-    if (
-      toTokenAddress &&
-      toTokens.some(
-        (token) => token.address.toLowerCase() === toTokenAddress.toLowerCase(),
-      )
-    ) {
+    if (toTokenAddress && toCatalog?.byAddress[toTokenAddress.toLowerCase()]) {
       return
     }
     setToTokenAddress(pickDefaultToToken(toTokens, fromTokenAddress).address)
-  }, [toTokens, toTokenAddress, fromTokenAddress])
+  }, [toTokens, toTokenAddress, fromTokenAddress, toCatalog])
 
   const amountError = useMemo(() => {
     if (!amount.trim()) return 'Enter an amount'
@@ -85,7 +85,7 @@ export function SwapForm() {
     return null
   }, [amount, fromToken])
 
-  const debouncedAmount = useDebouncedValue(amount, 450)
+  const debouncedAmount = useDebouncedValue(amount, 400)
 
   const quoteParams = useMemo(() => {
     if (
@@ -120,85 +120,102 @@ export function SwapForm() {
   }, [fromChainId, toChainId, fromToken, toToken, debouncedAmount])
 
   const quoteQuery = useQuote(quoteParams)
+  const sendUsd =
+    quoteQuery.data &&
+    quoteParams &&
+    quoteQuery.data.action.fromToken.address.toLowerCase() ===
+      fromToken?.address.toLowerCase()
+      ? formatUsd(quoteQuery.data.estimate.fromAmountUSD)
+      : null
 
   function swapSides() {
+    setSwapping(true)
     setFromChainId(toChainId)
     setToChainId(fromChainId)
     setFromTokenAddress(toTokenAddress)
     setToTokenAddress(fromTokenAddress)
+    window.setTimeout(() => setSwapping(false), 220)
   }
 
   return (
-    <div className="space-y-6">
-      <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <ChainSelect
-            id="from-chain"
-            label="From chain"
-            chains={chains}
-            value={fromChainId}
-            onChange={(chainId) => {
-              setFromChainId(chainId)
-              setFromTokenAddress(null)
-            }}
-            isLoading={chainsQuery.isLoading}
-          />
-          <TokenSelect
-            label="From token"
-            tokens={fromTokens}
-            value={fromTokenAddress}
-            onChange={setFromTokenAddress}
-            isLoading={fromTokensQuery.isLoading}
-            disabled={fromChainId === null}
-          />
-        </div>
+    <div className="space-y-5">
+      <section className="panel overflow-visible">
+        <div className="space-y-4">
+          <div className="leg">
+            <p className="eyebrow">You pay</p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-[1.1fr_0.9fr]">
+              <AmountInput
+                id="from-amount"
+                label="Amount"
+                value={amount}
+                onChange={setAmount}
+                symbol={fromToken?.symbol}
+                usdHint={sendUsd}
+                error={amount.trim() ? amountError : null}
+              />
+              <div className="grid gap-3">
+                <ChainSelect
+                  id="from-chain"
+                  label="Chain"
+                  chains={chains}
+                  value={fromChainId}
+                  onChange={(chainId) => {
+                    setFromChainId(chainId)
+                    setFromTokenAddress(null)
+                  }}
+                  isLoading={chainsQuery.isLoading}
+                />
+                <TokenSelect
+                  label="Token"
+                  tokens={fromTokens}
+                  value={fromTokenAddress}
+                  onChange={setFromTokenAddress}
+                  isLoading={fromTokensQuery.isLoading}
+                  disabled={fromChainId === null}
+                />
+              </div>
+            </div>
+          </div>
 
-        <div className="my-4 flex justify-center">
-          <button
-            type="button"
-            onClick={swapSides}
-            className="rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-100"
-            aria-label="Swap from and to"
-          >
-            ↕ Switch
-          </button>
-        </div>
+          <div className="flex justify-center">
+            <button
+              type="button"
+              onClick={swapSides}
+              className={`switch-button ${swapping ? 'switch-button-spin' : ''}`}
+              aria-label="Swap from and to"
+            >
+              <SwitchIcon />
+            </button>
+          </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <ChainSelect
-            id="to-chain"
-            label="To chain"
-            chains={chains}
-            value={toChainId}
-            onChange={(chainId) => {
-              setToChainId(chainId)
-              setToTokenAddress(null)
-            }}
-            isLoading={chainsQuery.isLoading}
-          />
-          <TokenSelect
-            label="To token"
-            tokens={toTokens}
-            value={toTokenAddress}
-            onChange={setToTokenAddress}
-            isLoading={toTokensQuery.isLoading}
-            disabled={toChainId === null}
-          />
-        </div>
-
-        <div className="mt-4">
-          <AmountInput
-            id="from-amount"
-            label="Amount"
-            value={amount}
-            onChange={setAmount}
-            symbol={fromToken?.symbol}
-            error={amount.trim() ? amountError : null}
-          />
+          <div className="leg">
+            <p className="eyebrow">You receive</p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <ChainSelect
+                id="to-chain"
+                label="Chain"
+                chains={chains}
+                value={toChainId}
+                onChange={(chainId) => {
+                  setToChainId(chainId)
+                  setToTokenAddress(null)
+                }}
+                isLoading={chainsQuery.isLoading}
+              />
+              <TokenSelect
+                label="Token"
+                tokens={toTokens}
+                value={toTokenAddress}
+                onChange={setToTokenAddress}
+                isLoading={toTokensQuery.isLoading}
+                disabled={toChainId === null}
+              />
+            </div>
+          </div>
         </div>
 
         {chainsQuery.isError ? (
-          <p className="mt-4 text-sm text-red-600">
+          <p className="mt-4 text-sm text-[var(--danger)]">
             Failed to load chains:{' '}
             {chainsQuery.error instanceof Error
               ? chainsQuery.error.message
@@ -218,31 +235,17 @@ export function SwapForm() {
   )
 }
 
-function findToken(tokens: LifiToken[], address: string | null) {
-  if (!address) return null
+function SwitchIcon() {
   return (
-    tokens.find((token) => token.address.toLowerCase() === address.toLowerCase()) ??
-    null
+    <svg
+      aria-hidden
+      viewBox="0 0 24 24"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+    >
+      <path d="M7 7h11l-3-3M17 17H6l3 3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   )
-}
-
-function pickDefaultFromToken(tokens: LifiToken[]) {
-  return (
-    tokens.find((token) => token.address === '0x0000000000000000000000000000000000000000') ||
-    tokens.find((token) => token.symbol.toUpperCase() === 'ETH') ||
-    tokens[0]
-  )
-}
-
-function pickDefaultToToken(tokens: LifiToken[], fromTokenAddress: string | null) {
-  const preferred =
-    tokens.find((token) => token.symbol.toUpperCase() === 'USDC') ||
-    tokens.find((token) => token.symbol.toUpperCase() === 'USDT') ||
-    tokens.find(
-      (token) =>
-        token.address.toLowerCase() !== fromTokenAddress?.toLowerCase(),
-    ) ||
-    tokens[0]
-
-  return preferred
 }

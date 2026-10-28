@@ -7,9 +7,6 @@ export function useChains() {
     queryKey: lifiKeys.chains(),
     queryFn: getChains,
     staleTime: 60 * 60_000,
-    select: (chains) =>
-      chains
-        .filter((chain) => chain.mainnet && chain.chainType === 'EVM')
-        .sort((a, b) => a.name.localeCompare(b.name)),
+    gcTime: 24 * 60 * 60_000,
   })
 }

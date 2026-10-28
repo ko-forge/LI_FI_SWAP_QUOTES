@@ -1,5 +1,8 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useVirtualizer } from '@tanstack/react-virtual'
+import { memo, useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { LifiToken } from '../api/lifi/types'
+import { useDebouncedValue } from '../hooks/use-debounced-value'
+import { filterTokens } from '../lib/tokens'
 import { TokenLogo } from './token-logo'
 
 interface TokenSelectProps {
@@ -11,7 +14,7 @@ interface TokenSelectProps {
   isLoading?: boolean
 }
 
-const MAX_RESULTS = 80
+const ROW_HEIGHT = 52
 
 export function TokenSelect({
   label,
@@ -23,28 +26,28 @@ export function TokenSelect({
 }: TokenSelectProps) {
   const listboxId = useId()
   const containerRef = useRef<HTMLDivElement>(null)
+  const parentRef = useRef<HTMLDivElement>(null)
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
+  const debouncedQuery = useDebouncedValue(query, 120)
 
-  const selected = useMemo(
-    () => tokens.find((token) => token.address.toLowerCase() === value?.toLowerCase()) ?? null,
-    [tokens, value],
+  const selected = useMemo(() => {
+    if (!value) return null
+    return tokens.find((token) => token.address.toLowerCase() === value.toLowerCase()) ?? null
+  }, [tokens, value])
+
+  const filtered = useMemo(
+    () => (open ? filterTokens(tokens, debouncedQuery) : []),
+    [tokens, debouncedQuery, open],
   )
 
-  const filtered = useMemo(() => {
-    const normalized = query.trim().toLowerCase()
-    if (!normalized) return tokens.slice(0, MAX_RESULTS)
-
-    return tokens
-      .filter((token) => {
-        return (
-          token.symbol.toLowerCase().includes(normalized) ||
-          token.name.toLowerCase().includes(normalized) ||
-          token.address.toLowerCase().includes(normalized)
-        )
-      })
-      .slice(0, MAX_RESULTS)
-  }, [tokens, query])
+  const virtualizer = useVirtualizer({
+    count: filtered.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => ROW_HEIGHT,
+    overscan: 8,
+    enabled: open,
+  })
 
   useEffect(() => {
     if (!open) return
@@ -73,89 +76,96 @@ export function TokenSelect({
 
   return (
     <div className="block space-y-1.5" ref={containerRef}>
-      <span className="text-sm font-medium text-zinc-700">{label}</span>
+      <span className="field-label">{label}</span>
       <button
         type="button"
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={listboxId}
         disabled={disabled || isLoading}
-        className="flex w-full items-center gap-3 rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-left text-sm outline-none transition hover:border-zinc-300 focus:border-zinc-400 focus:ring-2 focus:ring-zinc-200 disabled:cursor-not-allowed disabled:bg-zinc-50 disabled:text-zinc-400"
+        className="token-trigger"
         onClick={() => setOpen((current) => !current)}
       >
         {isLoading ? (
-          <span className="text-zinc-500">Loading tokens…</span>
+          <span className="text-[var(--ink-muted)]">Loading…</span>
         ) : selected ? (
           <>
-            <TokenLogo src={selected.logoURI} alt={selected.symbol} />
-            <span className="min-w-0 flex-1">
-              <span className="block font-medium text-zinc-900">{selected.symbol}</span>
-              <span className="block truncate text-xs text-zinc-500">{selected.name}</span>
+            <TokenLogo src={selected.logoURI} alt={selected.symbol} size="md" />
+            <span className="min-w-0 flex-1 text-left">
+              <span className="block font-semibold text-[var(--ink)]">
+                {selected.symbol}
+              </span>
+              <span className="block truncate text-xs text-[var(--ink-muted)]">
+                {selected.name}
+              </span>
             </span>
           </>
         ) : (
-          <span className="text-zinc-500">Select a token</span>
+          <span className="text-[var(--ink-muted)]">Select token</span>
         )}
-        <span className="text-zinc-400">▾</span>
+        <ChevronIcon />
       </button>
 
       {open ? (
-        <div className="relative z-20">
-          <div className="absolute inset-x-0 top-1 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-lg">
-            <div className="border-b border-zinc-100 p-2">
+        <div className="relative z-30">
+          <div className="token-menu animate-rise">
+            <div className="border-b border-[var(--line)] p-2">
               <input
                 autoFocus
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Search symbol, name, or address"
-                className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm outline-none focus:border-zinc-400 focus:ring-2 focus:ring-zinc-200"
+                className="field-input"
               />
             </div>
-            <ul
+            <div
               id={listboxId}
               role="listbox"
-              className="max-h-64 overflow-y-auto py-1"
+              ref={parentRef}
+              className="max-h-72 overflow-y-auto"
             >
               {filtered.length === 0 ? (
-                <li className="px-3 py-3 text-sm text-zinc-500">No tokens found</li>
+                <p className="px-3 py-4 text-sm text-[var(--ink-muted)]">No tokens found</p>
               ) : (
-                filtered.map((token) => {
-                  const isSelected =
-                    token.address.toLowerCase() === selected?.address.toLowerCase()
+                <div
+                  style={{
+                    height: `${virtualizer.getTotalSize()}px`,
+                    width: '100%',
+                    position: 'relative',
+                  }}
+                >
+                  {virtualizer.getVirtualItems().map((item) => {
+                    const token = filtered[item.index]!
+                    const isSelected =
+                      token.address.toLowerCase() === selected?.address.toLowerCase()
 
-                  return (
-                    <li key={`${token.chainId}-${token.address}`}>
-                      <button
-                        type="button"
-                        role="option"
-                        aria-selected={isSelected}
-                        className={`flex w-full items-center gap-3 px-3 py-2 text-left text-sm hover:bg-zinc-50 ${
-                          isSelected ? 'bg-zinc-50' : ''
-                        }`}
-                        onClick={() => {
-                          onChange(token.address)
-                          setOpen(false)
-                          setQuery('')
+                    return (
+                      <div
+                        key={token.address}
+                        style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          width: '100%',
+                          height: `${item.size}px`,
+                          transform: `translateY(${item.start}px)`,
                         }}
                       >
-                        <TokenLogo src={token.logoURI} alt={token.symbol} />
-                        <span className="min-w-0 flex-1">
-                          <span className="block font-medium text-zinc-900">
-                            {token.symbol}
-                          </span>
-                          <span className="block truncate text-xs text-zinc-500">
-                            {token.name}
-                          </span>
-                        </span>
-                        <span className="font-mono text-[10px] text-zinc-400">
-                          {shortenAddress(token.address)}
-                        </span>
-                      </button>
-                    </li>
-                  )
-                })
+                        <TokenOption
+                          token={token}
+                          selected={isSelected}
+                          onSelect={() => {
+                            onChange(token.address)
+                            setOpen(false)
+                            setQuery('')
+                          }}
+                        />
+                      </div>
+                    )
+                  })}
+                </div>
               )}
-            </ul>
+            </div>
           </div>
         </div>
       ) : null}
@@ -163,7 +173,53 @@ export function TokenSelect({
   )
 }
 
+const TokenOption = memo(function TokenOption({
+  token,
+  selected,
+  onSelect,
+}: {
+  token: LifiToken
+  selected: boolean
+  onSelect: () => void
+}) {
+  return (
+    <button
+      type="button"
+      role="option"
+      aria-selected={selected}
+      className={`flex h-full w-full items-center gap-3 px-3 text-left text-sm transition hover:bg-[var(--surface-muted)] ${
+        selected ? 'bg-[var(--surface-muted)]' : ''
+      }`}
+      onClick={onSelect}
+    >
+      <TokenLogo src={token.logoURI} alt={token.symbol} size="md" />
+      <span className="min-w-0 flex-1">
+        <span className="block font-semibold text-[var(--ink)]">{token.symbol}</span>
+        <span className="block truncate text-xs text-[var(--ink-muted)]">{token.name}</span>
+      </span>
+      <span className="font-mono text-[10px] text-[var(--ink-faint)]">
+        {shortenAddress(token.address)}
+      </span>
+    </button>
+  )
+})
+
 function shortenAddress(address: string) {
   if (address.length < 10) return address
   return `${address.slice(0, 6)}…${address.slice(-4)}`
+}
+
+function ChevronIcon() {
+  return (
+    <svg
+      aria-hidden
+      viewBox="0 0 20 20"
+      className="h-4 w-4 shrink-0 text-[var(--ink-muted)]"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+    >
+      <path d="M5 7.5 10 12.5 15 7.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
 }

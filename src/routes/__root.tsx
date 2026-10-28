@@ -13,15 +13,19 @@ export const Route = createRootRouteWithContext<RouterContext>()({
 function RootComponent() {
   return (
     <>
-      <div className="min-h-dvh bg-zinc-50 text-zinc-900 antialiased">
-        <header className="border-b border-zinc-200 bg-white">
-          <div className="mx-auto flex max-w-3xl items-center px-4 py-4">
-            <h1 className="text-lg font-semibold tracking-tight">
-              LI.FI Swap Quotes
-            </h1>
+      <div className="app-shell text-[var(--ink)] antialiased">
+        <header className="app-header">
+          <div className="app-header-inner">
+            <div className="brand">
+              <div className="brand-mark">LQ</div>
+              <div>
+                <div className="brand-title">LI.FI Swap Quotes</div>
+                <div className="brand-subtitle">Routes across chains, quotes only</div>
+              </div>
+            </div>
           </div>
         </header>
-        <main className="mx-auto max-w-3xl px-4 py-8">
+        <main className="app-main">
           <Outlet />
         </main>
       </div>

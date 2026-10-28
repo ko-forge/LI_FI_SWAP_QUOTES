@@ -24,20 +24,18 @@ export function QuoteResult({
   ready,
 }: QuoteResultProps) {
   if (!ready) {
-    return (
-      <EmptyState message="Choose chains, tokens, and an amount to see a quote." />
-    )
+    return <EmptyState message="Enter an amount to fetch a live LI.FI quote." />
   }
 
   if (isFetching && !quote) {
-    return <EmptyState message="Fetching quote…" />
+    return <QuoteSkeleton />
   }
 
-  if (isError) {
+  if (isError && !quote) {
     return (
-      <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-        <p className="font-medium">Couldn’t fetch a quote</p>
-        <p className="mt-1 text-red-600/90">
+      <div className="panel panel-danger animate-rise">
+        <p className="font-semibold">Couldn’t fetch a quote</p>
+        <p className="mt-1 text-sm opacity-90">
           {error instanceof LifiApiError
             ? error.message
             : error?.message || 'Something went wrong.'}
@@ -55,31 +53,31 @@ export function QuoteResult({
     .reduce((sum, value) => sum + value, 0)
 
   return (
-    <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+    <section className={`panel animate-rise ${isFetching ? 'opacity-80' : ''}`}>
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h3 className="text-sm font-medium text-zinc-500">You receive</h3>
-          <div className="mt-2 flex items-center gap-3">
-            <TokenLogo src={action.toToken.logoURI} alt={action.toToken.symbol} size="md" />
+          <p className="eyebrow">You receive</p>
+          <div className="mt-3 flex items-center gap-3">
+            <TokenLogo src={action.toToken.logoURI} alt={action.toToken.symbol} size="lg" />
             <div>
-              <p className="text-2xl font-semibold tracking-tight text-zinc-900">
+              <p className="font-mono text-3xl font-semibold tracking-tight text-[var(--ink)]">
                 {formatTokenAmount(estimate.toAmount, action.toToken)}
               </p>
-              <p className="text-sm text-zinc-500">
+              <p className="mt-1 text-sm text-[var(--ink-muted)]">
                 {formatUsd(estimate.toAmountUSD) ?? '—'}
               </p>
             </div>
           </div>
         </div>
-        {isFetching ? (
-          <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-xs text-zinc-500">
-            Updating…
-          </span>
-        ) : null}
+        {isFetching ? <span className="status-chip">Updating</span> : null}
+        {isError ? <span className="status-chip status-chip-warn">Stale</span> : null}
       </div>
 
-      <dl className="mt-5 grid gap-3 border-t border-zinc-100 pt-4 text-sm sm:grid-cols-2">
-        <Detail label="Min received" value={formatTokenAmount(estimate.toAmountMin, action.toToken)} />
+      <dl className="mt-6 grid gap-3 border-t border-[var(--line)] pt-4 text-sm sm:grid-cols-2">
+        <Detail
+          label="Min received"
+          value={formatTokenAmount(estimate.toAmountMin, action.toToken)}
+        />
         <Detail label="Send value" value={formatUsd(estimate.fromAmountUSD) ?? '—'} />
         <Detail
           label="Route"
@@ -94,10 +92,7 @@ export function QuoteResult({
           label="Est. time"
           value={formatDurationSeconds(estimate.executionDuration) ?? '—'}
         />
-        <Detail
-          label="Network gas"
-          value={gasUsd ? formatUsd(gasUsd) : '—'}
-        />
+        <Detail label="Network gas" value={gasUsd ? formatUsd(gasUsd) : '—'} />
         <Detail
           label="Slippage"
           value={
@@ -111,25 +106,42 @@ export function QuoteResult({
   )
 }
 
-function Detail({
-  label,
-  value,
-}: {
-  label: string
-  value: ReactNode
-}) {
+function Detail({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="flex items-start justify-between gap-3 sm:block sm:space-y-1">
-      <dt className="text-zinc-500">{label}</dt>
-      <dd className="font-medium text-zinc-900">{value}</dd>
+      <dt className="text-[var(--ink-muted)]">{label}</dt>
+      <dd className="font-medium text-[var(--ink)]">{value}</dd>
     </div>
   )
 }
 
 function EmptyState({ message }: { message: string }) {
   return (
-    <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-10 text-center text-sm text-zinc-500">
-      {message}
+    <div className="empty-panel">
+      <p>{message}</p>
+    </div>
+  )
+}
+
+function QuoteSkeleton() {
+  return (
+    <div className="panel animate-pulse">
+      <div className="h-3 w-24 rounded bg-[var(--surface-muted)]" />
+      <div className="mt-4 flex items-center gap-3">
+        <div className="h-9 w-9 rounded-full bg-[var(--surface-muted)]" />
+        <div className="space-y-2">
+          <div className="h-8 w-48 rounded bg-[var(--surface-muted)]" />
+          <div className="h-3 w-20 rounded bg-[var(--surface-muted)]" />
+        </div>
+      </div>
+      <div className="mt-6 grid gap-3 border-t border-[var(--line)] pt-4 sm:grid-cols-2">
+        {Array.from({ length: 6 }).map((_, index) => (
+          <div key={index} className="space-y-2">
+            <div className="h-3 w-16 rounded bg-[var(--surface-muted)]" />
+            <div className="h-4 w-28 rounded bg-[var(--surface-muted)]" />
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
