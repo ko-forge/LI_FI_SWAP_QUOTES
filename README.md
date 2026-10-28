@@ -37,6 +37,7 @@ There is **no wallet connection**, **no signing**, and **no swap execution**. Qu
 | Styling | Tailwind CSS 4 + custom CSS variables |
 | API | LI.FI public REST API (no API key) |
 | Tooling | ESLint (`@tanstack/eslint-config`) + Prettier |
+| Tests | Vitest + Testing Library + jsdom |
 
 ---
 
@@ -181,6 +182,38 @@ src/
 
 ---
 
+## Testing
+
+Unit tests use **Vitest** with **Testing Library** and **jsdom**.
+
+```bash
+# run once
+npm test
+
+# watch mode
+npm run test:watch
+
+# coverage report (text + html)
+npm run test:coverage
+```
+
+### What’s covered
+
+| Area | Files |
+| --- | --- |
+| Amount / USD / duration helpers | `src/lib/format.test.ts` |
+| Token catalog, defaults, search | `src/lib/tokens.test.ts` |
+| LI.FI fetch client + errors | `src/api/lifi/client.test.ts` |
+| Chains / tokens / quote endpoints | `src/api/lifi/endpoints.test.ts` |
+| Debounce hook | `src/hooks/use-debounced-value.test.ts` |
+| Quote query hook | `src/hooks/use-quote.test.tsx` |
+| Amount input UI | `src/components/amount-input.test.tsx` |
+| Quote result UI | `src/components/quote-result.test.tsx` |
+
+Shared fixtures live in `src/test/fixtures.ts`. Setup is in `src/test/setup.ts`.
+
+---
+
 ## Scripts
 
 | Script | Description |
@@ -192,6 +225,9 @@ src/
 | `npm run lint` | Run ESLint |
 | `npm run format` | Format with Prettier + ESLint autofix |
 | `npm run check` | Check Prettier formatting |
+| `npm test` | Run unit tests once |
+| `npm run test:watch` | Run Vitest in watch mode |
+| `npm run test:coverage` | Run tests with V8 coverage |
 
 ---
 
@@ -203,6 +239,7 @@ src/
 4. **Swap form** — chain/token/amount selection with live quotes.
 5. **UI polish** — branded shell, stacked swap layout, skeletons, motion.
 6. **Performance** — token catalogs, virtualized search, prefetch, quote placeholder data.
+7. **Unit tests** — Vitest + Testing Library covering lib, API, hooks, and key UI.
 
 ---
 
