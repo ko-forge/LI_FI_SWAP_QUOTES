@@ -149,12 +149,25 @@ body::before {
 }
 
 .panel {
+  position: relative;
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: var(--surface);
+  background: var(--surface-solid);
   box-shadow: var(--shadow);
-  backdrop-filter: blur(10px);
   padding: 1.15rem;
+  overflow: visible;
+}
+
+/* Blur on a pseudo-element so dropdowns are not clipped by backdrop-filter. */
+.panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: var(--surface);
+  backdrop-filter: blur(10px);
+  pointer-events: none;
 }
 
 .panel-danger {
@@ -164,10 +177,12 @@ body::before {
 }
 
 .leg {
+  position: relative;
   border: 1px solid var(--line);
   border-radius: calc(var(--radius) - 0.25rem);
   background: rgba(255, 255, 255, 0.72);
   padding: 1rem;
+  overflow: visible;
 }
 
 .eyebrow {
@@ -251,14 +266,16 @@ body::before {
 }
 
 .token-menu {
-  position: absolute;
-  inset-inline: 0;
-  top: 0.35rem;
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 1rem;
   background: var(--surface-solid);
   box-shadow: var(--shadow);
+}
+
+.token-menu-portal {
+  position: fixed;
+  z-index: 1000;
 }
 
 .switch-button {

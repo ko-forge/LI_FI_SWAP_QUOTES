@@ -1,5 +1,6 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { memo, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { LifiToken } from '../api/lifi/types'
 import { useDebouncedValue } from '../hooks/use-debounced-value'
 import { filterTokens } from '../lib/tokens'
@@ -15,6 +16,13 @@ interface TokenSelectProps {
 }
 
 const ROW_HEIGHT = 52
+const MENU_GAP = 6
+
+interface MenuPosition {
+  top: number
+  left: number
+  width: number
+}
 
 export function TokenSelect({
   label,
@@ -26,9 +34,12 @@ export function TokenSelect({
 }: TokenSelectProps) {
   const listboxId = useId()
   const containerRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
   const parentRef = useRef<HTMLDivElement>(null)
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
+  const [menuPosition, setMenuPosition] = useState<MenuPosition | null>(null)
   const debouncedQuery = useDebouncedValue(query, 120)
 
   const selected = useMemo(() => {
@@ -49,14 +60,46 @@ export function TokenSelect({
     enabled: open,
   })
 
+  useLayoutEffect(() => {
+    if (!open) {
+      setMenuPosition(null)
+      return
+    }
+
+    function updatePosition() {
+      const trigger = triggerRef.current
+      if (!trigger) return
+
+      const rect = trigger.getBoundingClientRect()
+      setMenuPosition({
+        top: rect.bottom + MENU_GAP,
+        left: rect.left,
+        width: rect.width,
+      })
+    }
+
+    updatePosition()
+    window.addEventListener('resize', updatePosition)
+    window.addEventListener('scroll', updatePosition, true)
+    return () => {
+      window.removeEventListener('resize', updatePosition)
+      window.removeEventListener('scroll', updatePosition, true)
+    }
+  }, [open])
+
   useEffect(() => {
     if (!open) return
 
     function onPointerDown(event: MouseEvent) {
-      if (!containerRef.current?.contains(event.target as Node)) {
-        setOpen(false)
-        setQuery('')
+      const target = event.target as Node
+      if (
+        containerRef.current?.contains(target) ||
+        menuRef.current?.contains(target)
+      ) {
+        return
       }
+      setOpen(false)
+      setQuery('')
     }
 
     function onKeyDown(event: KeyboardEvent) {
@@ -74,10 +117,16 @@ export function TokenSelect({
     }
   }, [open])
 
+  function close() {
+    setOpen(false)
+    setQuery('')
+  }
+
   return (
     <div className="block space-y-1.5" ref={containerRef}>
       <span className="field-label">{label}</span>
       <button
+        ref={triggerRef}
         type="button"
         aria-haspopup="listbox"
         aria-expanded={open}
@@ -106,69 +155,79 @@ export function TokenSelect({
         <ChevronIcon />
       </button>
 
-      {open ? (
-        <div className="relative z-30">
-          <div className="token-menu animate-rise">
-            <div className="border-b border-[var(--line)] p-2">
-              <input
-                autoFocus
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search symbol, name, or address"
-                className="field-input"
-              />
-            </div>
+      {open && menuPosition
+        ? createPortal(
             <div
-              id={listboxId}
-              role="listbox"
-              ref={parentRef}
-              className="max-h-72 overflow-y-auto"
+              ref={menuRef}
+              className="token-menu token-menu-portal animate-rise"
+              style={{
+                top: menuPosition.top,
+                left: menuPosition.left,
+                width: menuPosition.width,
+              }}
             >
-              {filtered.length === 0 ? (
-                <p className="px-3 py-4 text-sm text-[var(--ink-muted)]">No tokens found</p>
-              ) : (
-                <div
-                  style={{
-                    height: `${virtualizer.getTotalSize()}px`,
-                    width: '100%',
-                    position: 'relative',
-                  }}
-                >
-                  {virtualizer.getVirtualItems().map((item) => {
-                    const token = filtered[item.index]!
-                    const isSelected =
-                      token.address.toLowerCase() === selected?.address.toLowerCase()
+              <div className="border-b border-[var(--line)] p-2">
+                <input
+                  autoFocus
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Search symbol, name, or address"
+                  className="field-input"
+                />
+              </div>
+              <div
+                id={listboxId}
+                role="listbox"
+                ref={parentRef}
+                className="max-h-72 overflow-y-auto"
+              >
+                {filtered.length === 0 ? (
+                  <p className="px-3 py-4 text-sm text-[var(--ink-muted)]">
+                    No tokens found
+                  </p>
+                ) : (
+                  <div
+                    style={{
+                      height: `${virtualizer.getTotalSize()}px`,
+                      width: '100%',
+                      position: 'relative',
+                    }}
+                  >
+                    {virtualizer.getVirtualItems().map((item) => {
+                      const token = filtered[item.index]!
+                      const isSelected =
+                        token.address.toLowerCase() === selected?.address.toLowerCase()
 
-                    return (
-                      <div
-                        key={token.address}
-                        style={{
-                          position: 'absolute',
-                          top: 0,
-                          left: 0,
-                          width: '100%',
-                          height: `${item.size}px`,
-                          transform: `translateY(${item.start}px)`,
-                        }}
-                      >
-                        <TokenOption
-                          token={token}
-                          selected={isSelected}
-                          onSelect={() => {
-                            onChange(token.address)
-                            setOpen(false)
-                            setQuery('')
+                      return (
+                        <div
+                          key={token.address}
+                          style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            width: '100%',
+                            height: `${item.size}px`,
+                            transform: `translateY(${item.start}px)`,
                           }}
-                        />
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      ) : null}
+                        >
+                          <TokenOption
+                            token={token}
+                            selected={isSelected}
+                            onSelect={() => {
+                              onChange(token.address)
+                              close()
+                            }}
+                          />
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   )
 }

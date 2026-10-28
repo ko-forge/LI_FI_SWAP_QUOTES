@@ -139,7 +139,7 @@ export function SwapForm() {
 
   return (
     <div className="space-y-5">
-      <section className="panel overflow-visible">
+      <section className="panel">
         <div className="space-y-4">
           <div className="leg">
             <p className="eyebrow">You pay</p>
