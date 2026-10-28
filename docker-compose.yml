@@ -1,0 +1,9 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: li-fi-swap-quotes:latest
+    ports:
+      - "8080:80"
+    restart: unless-stopped

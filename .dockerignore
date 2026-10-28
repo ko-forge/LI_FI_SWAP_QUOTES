@@ -1,0 +1,14 @@
+node_modules
+dist
+coverage
+.git
+.github
+.vscode
+.tanstack
+.cursor
+.env
+.env.*
+*.local
+.DS_Store
+npm-debug.log*
+README.md

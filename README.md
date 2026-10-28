@@ -69,6 +69,45 @@ npm run preview
 
 ---
 
+## Docker
+
+The app is a static Vite SPA. The image builds the production bundle with Node, then serves it with nginx.
+
+### Files
+
+| File | Purpose |
+| --- | --- |
+| `Dockerfile` | Multi-stage build (`node:22-alpine` → `nginx:1.27-alpine`) |
+| `nginx.conf` | SPA routing fallback + asset caching |
+| `docker-compose.yml` | One-command local run on port `8080` |
+| `.dockerignore` | Keeps build context small |
+
+### Build and run with Docker
+
+```bash
+docker build -t li-fi-swap-quotes .
+docker run --rm -p 8080:80 li-fi-swap-quotes
+```
+
+Open [http://localhost:8080](http://localhost:8080).
+
+### Or use Docker Compose
+
+```bash
+docker compose up --build
+```
+
+Same URL: [http://localhost:8080](http://localhost:8080).
+
+Stop with `Ctrl+C`, or in detached mode:
+
+```bash
+docker compose up --build -d
+docker compose down
+```
+
+---
+
 ## How to use the app
 
 1. Open the app in the browser.
@@ -240,6 +279,7 @@ Shared fixtures live in `src/test/fixtures.ts`. Setup is in `src/test/setup.ts`.
 5. **UI polish** — branded shell, stacked swap layout, skeletons, motion.
 6. **Performance** — token catalogs, virtualized search, prefetch, quote placeholder data.
 7. **Unit tests** — Vitest + Testing Library covering lib, API, hooks, and key UI.
+8. **Docker** — multi-stage Node build + nginx image, plus Compose.
 
 ---
 
